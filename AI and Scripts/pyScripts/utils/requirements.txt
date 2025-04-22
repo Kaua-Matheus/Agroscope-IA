@@ -1,0 +1,8 @@
+Flask==3.0.3
+flask_cors
+torch==2.6.0+cu124
+torchaudio==2.6.0+cu124
+torchvision==0.21.0+cu124
+pillow
+numpy==2.1.2
+opencv-python==4.11.0.86
