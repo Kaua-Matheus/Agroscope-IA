@@ -1,0 +1,28 @@
+# Data
+/Data
+./Data/
+Data/*
+
+/Images
+./Images/
+Images/*
+/images
+./images/
+images/*
+
+# Data Formats
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tiff
+*.gif
+*.csv
+
+# Environment
+.env
+env/
+
+./venv
+venv/
+.venv
