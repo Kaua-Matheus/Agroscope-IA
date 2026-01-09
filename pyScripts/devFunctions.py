@@ -2,8 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Função para mostrar as imagens
-def imshow(img):
+def imshow(img, title=""):
     img = img / 2 + 0.5 # Retirando o normalize
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.title(title)
     plt.show()
