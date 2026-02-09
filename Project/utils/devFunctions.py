@@ -47,8 +47,13 @@ def CropImage(input_path:str, output_path:str=""):
 
         print(f"Pasta atual: {Colors().BLUE}{input_path}{Colors().DEFAULT}")
         src = Path(input_path)
+        files_list = list(src.iterdir())
 
-        for file in src.iterdir():
+        for (index, file) in enumerate(files_list):
+            if index % 1000 == 0 and index != 0:
+                print("Aoooo")
+                print(f"{(index / len(files_list) * 100):.2f}% - {index} / {len(files_list)}")
+
             if file.suffix in suffix:
 
                 try:
@@ -85,6 +90,7 @@ def CropImage(input_path:str, output_path:str=""):
                         cv2.imwrite((output_path + "/" if output_path[-1] != "/" else output_path) + file.name, crop)
                     else:
                         cv2.imwrite("cropped_images/" + file.name, crop)
+
                 except Exception as e:
                     print(Colors().ERROR(e))
                     continue
