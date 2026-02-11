@@ -23,6 +23,10 @@ images/*
 .env
 env/
 
+__pypache__/
+./__pypache__/
+.__pypache__
+
 ./venv
 venv/
 .venv
