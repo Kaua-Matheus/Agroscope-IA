@@ -26,7 +26,7 @@ class Colors:
 
 
 # Mostra as imagens
-def Imshow(img, title=""):
+def Imshow(img, title :str=""):
     img = img / 2 + 0.5 # Retirando o normalize
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
@@ -34,7 +34,7 @@ def Imshow(img, title=""):
     plt.show()
 
 
-def CropImage(input_path:str, output_path:str=""):
+def CropImage(input_path :str, output_path :str=""):
     """
         Corta as imagens de dentro pasta (input) para adquirir somente o objeto (folha) central
     """

@@ -23,10 +23,19 @@ images/*
 .env
 env/
 
-__pypache__/
-./__pypache__/
-.__pypache__
+__pycache__
 
 ./venv
 venv/
 .venv
+
+# Copilot
+.github/
+
+# Python
+lab.ipynb
+generalAI.ipynb
+
+# Annother
+/OldProject
+/ImgTest
