@@ -2,15 +2,33 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 
+from enum import Enum
 
-def Get_Transform():
-    return transforms.Compose([
-        transforms.Resize((224, 224)),
+class TransformType(Enum):
+    TRAIN = "train"
+    VAL = "val"
 
-        transforms.CenterCrop((192, 192)),
+
+def Get_Transform(type: TransformType):
+    if type == TransformType.TRAIN:
+        return transforms.Compose([
+            transforms.Resize((224, 224)),
+
+            transforms.CenterCrop((192, 192)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+    elif type == TransformType.VAL:
+        
+        return transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.CenterCrop((224, 224)),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                            std=[0.229, 0.224, 0.225])
     ])
+
 
     
 class NeuralNetwork(nn.Module):
