@@ -6,5 +6,6 @@ numpy
 opencv-python
 scikit-learn
 pandas
+python-dotenv
 
 matplotlib
