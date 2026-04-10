@@ -1,10 +1,22 @@
+# Tensor and Model
 torch
 torchaudio
 torchvision
+
 pillow
+
+# Data Manipulation
 numpy
-opencv-python
-scikit-learn
 pandas
 
+# Transform Jetter
+opencv-python
+
+# Metrics
+scikit-learn
+
+# Data View and Dashboards
 matplotlib
+
+# Env
+python-dotenv
