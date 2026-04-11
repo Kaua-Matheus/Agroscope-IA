@@ -1,3 +1,8 @@
+"""
+Para rodar a aplicação, você deve estar dentro da pasta /Project/IA
+"""
+
+
 # FastAPI
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # Scripts auxiliares
-from imports import loadModelWithLabels
+from imports import loadModel
 
 # System
 import os
@@ -15,6 +20,7 @@ from PIL import Image
 # Torch
 import torch
 from torchvision import transforms
+import torch.nn.functional as F
 
 # Numpy
 import numpy as np
@@ -25,6 +31,7 @@ from dotenv import load_dotenv
 # Loading env
 if load_dotenv():
     print(".env loaded successfully.") # Apply logging
+    print(os.getenv("CORN"))
 else:
     raise("Couldn't load the .env")
 
@@ -33,7 +40,7 @@ else:
 app = FastAPI()
 
 origins = [
-    "http://localhost:3000",
+    "http://localhost:3000", # Atualizar CORS com .env
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -49,26 +56,29 @@ app.add_middleware(
     allow_headers=["*"], # Change for security
 )
 
+# Device
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # CNN
-## Importing models
 ## Generalist
 GeneralPATH = os.getenv("GENERALIST")
 
 ## Experts
-CornPath = os.getenv("CORN")
-WheatPath = os.getenv("WHEAT")
-SoybeanPath = os.getenv("SOY")
+if os.path.isfile(os.getenv("CORN")):
+    CORN, LOADED_CORN = loadModel(os.getenv("CORN"), device=DEVICE)
+    print("CORN Model loaded successfully")
 
-# Device
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+else:
+    raise FileNotFoundError("couldn't identify the trained Corn model archive")
+
+# WHEAT_PATH = os.getenv("WHEAT")
+# SOYBEAN_PATH = os.getenv("SOY")
 
 
 ## Rede Neural ##
-# Net, checkpointNet = loadModelWithLabels(GeneralPATH)
-# Corn, checkpointCorn = loadModelWithLabels(CornPath)
-# Wheat, checkpointWheat = loadModelWithLabels(WheatPath)
-# Soybean, checkpointSoybean = loadModelWithLabels(SoybeanPath)
-
+# GENERAL, LOADED_GENERAL = loadModelWithLabels(GeneralPATH)
+# WHEAT, LOADED_WHEAT = loadModelWithLabels(WHEAT_PATH)
+# SOYBEAN, LOADED_SOYBEAN = loadModelWithLabels(SOYBEAN_PATH)
 
 # Transform - Apply models.Get_Transform
 transform = transforms.Compose([
@@ -78,79 +88,104 @@ transform = transforms.Compose([
     transforms.Normalize([0.485,0.456,0.406], [0.229,0.224,0.225]),
 ])
 
+### ---- ###
+
+# Carregando modelo de milho
+"""
+Por conta de usarmos um modelo treinado, temos que então importa-lo e carregar a arquitetura.
+Logo após, necessitamos introduzir os pesos próprios nos nós do modelo carregado e então o modelo estará pronto para uso.
+"""
+
+# Aqui vai o carregamento de modelo
+
+### ---- ###
+
+
+# Defs
+def __preprocess_image(image_file: UploadFile):
+    try:
+        # Tratamento Imagem
+        image_data = image_file.file.read()    
+        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+
+        image_tensor = transform(image).unsqueeze(0)
+        return image_tensor
+
+    except Exception as e:
+        print(f"Error trying to manipulate the image: {e}")
+
+
+def __corn_predict(image_tensor):
+
+    try:
+        with torch.no_grad():
+
+            outputs = CORN(image_tensor.to(DEVICE))
+            probabilities = F.softmax(outputs, dim=1)
+            predicted_class_idx = torch.argmax(probabilities, dim=1).item()
+
+            confidence = probabilities[0][predicted_class_idx].item()
+        
+        predicted_class = LOADED_CORN["class_names"][predicted_class_idx]
+
+        all_probabilities = {
+            LOADED_CORN["class_names"][i]: float(probabilities[0][i])
+            for i in range(len(LOADED_CORN["class_names"]))
+        }
+        
+        return predicted_class, round(confidence * 100, 2), all_probabilities
+
+    except Exception as e:
+        print(f"Error trying to predict: {e}")
+
 
 # Routes
-@app.get("/")
-def Debug():
-    return "The API is working."
-
 ## Debug
+@app.get("/modelinfo")
+def ModelInfo():
+    return {
+        "class_names": LOADED_CORN["class_names"],
+        "num_classes": LOADED_CORN["num_classes"],
+        "model_info": LOADED_CORN["model_info"],
+    }
+
+@app.get("/modelready")
+def ModelInfo():
+    return {
+        "model": CORN,
+    }
+
+## Predict
+@app.post("/predict")
+async def Predict( file: UploadFile = File(...) ):
+    
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(400, "Only images are acceptable.")
+
+    contents = await file.read()
+    if len(contents) > 8 * 1024 * 1024:
+        raise HTTPException(400, "File too large.")
+    
+    await file.seek(0)
 
 
+    image_tensor = __preprocess_image(image_file=file)
+
+    # Prediction
+    prediction = __corn_predict(image_tensor)
 
 
-# ## Rodando a aplicação ##
-# @app.route('/predict', methods=['POST'])
-# def predict():
-#     if 'image' not in request.files:
-#         return jsonify({"error": "Nenhuma imagem enviada"}), 400
+    return {
+        "prediction": prediction,
+    }
 
-#     file = request.files['image']
-#     test_image = Image.open(file.stream).convert('RGB')
+    # return {
+    #     "plant": generalPrediction.lower(), 
+    #     "plantConfidence": generalConfidence,
+    #     "prediction": predicted_class.lower(), 
+    #     "predictionConfidence": sicknessConfidence
+    #     }
 
-#     # Pré-processar a imagem
-#     test_image = transform(test_image).unsqueeze(0).to(DEVICE)
-
-#     # Previsão
-#     with torch.no_grad():
-#         output = Net(test_image)
-#         generalProbabilities = torch.softmax(output, dim=1).cpu().numpy()
-#         predicted_index = np.argmax(generalProbabilities)        
-#         generalPrediction = checkpointNet["class_names"][predicted_index]
-
-#         generalConfidence = float(generalProbabilities[0][predicted_index])
-
-#         match(generalPrediction):
-#             case "Corn":
-#                 test_image = Image.open(file.stream).convert('RGB')
-#                 test_image = transform(test_image).unsqueeze(0).to(DEVICE)
-
-#                 output = Corn(test_image)
-#                 probabilities = torch.softmax(output, dim=1).cpu().numpy()
-#                 predicted_index = np.argmax(probabilities)        
-#                 predicted_class = checkpointCorn["class_names"][predicted_index]
-
-#                 sicknessConfidence = float(probabilities[0][predicted_index])
-                
-#             case "Soybean":
-#                 test_image = Image.open(file.stream).convert('RGB')
-#                 test_image = transform(test_image).unsqueeze(0).to(DEVICE)
-
-#                 output = Soybean(test_image)
-#                 probabilities = torch.softmax(output, dim=1).cpu().numpy()
-#                 predicted_index = np.argmax(probabilities)        
-#                 predicted_class = checkpointSoybean["class_names"][predicted_index]
-
-#                 sicknessConfidence = float(probabilities[0][predicted_index])
-
-#             case "Wheat":
-#                 test_image = Image.open(file.stream).convert('RGB')
-#                 test_image = transform(test_image).unsqueeze(0).to(DEVICE)
-
-#                 output = Wheat(test_image)
-#                 probabilities = torch.softmax(output, dim=1).cpu().numpy()
-#                 predicted_index = np.argmax(probabilities)        
-#                 predicted_class = checkpointWheat["class_names"][predicted_index]
-
-#                 sicknessConfidence = float(probabilities[0][predicted_index])
-
-#             case _:
-#                 predicted_class = "doença não identificada."
-
-#     return jsonify({'plant': generalPrediction.lower(), 
-#                     'plantConfidence': generalConfidence,
-#                     'prediction': predicted_class.lower(), 
-#                     'predictionConfidence': sicknessConfidence}), 200
 
 
 

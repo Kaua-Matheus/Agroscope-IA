@@ -2,15 +2,14 @@
 import torch
 
 from utils.model import NeuralNetwork
+from torchvision import models
 
 from typing import NamedTuple, Optional
 
 
-class Response(NamedTuple):
-    Net: NeuralNetwork
-    Checkpoint: Optional[dict] = None
-
-
+"""
+Podemos usar diretamente a biblioteca logging
+"""
 class Colors:
     def __init__(self):
         self.RED = "\033[1;31m"
@@ -26,37 +25,56 @@ class Colors:
         return f"[{self.RED}ERROR{self.DEFAULT}]: {text}"
 
 
+class Response(NamedTuple):
+    """
+        Modelo e checkpoint
+
+        return:
+            Model: Modelo no qual o treinamento foi feito.
+            Checkpoint: Estrutura de modelo e informações sobre o mesmo.
+    """
+    Net: models.ConvNeXt
+    Checkpoint: Optional[dict] = None
+
+
 # LoadModel
-def loadModelWithLabels(model_path: str) -> Response:
+def loadModel(model_path: str, device: str = "cpu") -> Response:
     """
         Função para carregamento de modelos treinados.
         Habilitada a opção de carregar os metadados.
 
         params:
             model_path: Caminho do arquivo .pth do modelo
-            model_class: Classe do modelo com base nn.Module
 
         Caso existam registros no checkpoint, o primeiro retorno da tupla será o modelo.eval() e o segundo será o checkpoint.
         Senão, somente será retornada uma tupla contendo o modelo.eval()
     """
 
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     colors = Colors()
 
     try:
-        checkpoint = torch.load(model_path)
 
-        if checkpoint["model_state_dict"] != None:
-            model = NeuralNetwork().to(DEVICE)
-            model.load_state_dict(checkpoint["model_state_dict"])
+        NET = models.convnext_tiny(weights=None)
+        in_features = NET.classifier[2].in_features
+
+        LOADED_CHECKPOINT = torch.load(
+            model_path,
+            map_location=device,
+            )
+
+        if LOADED_CHECKPOINT["model_state_dict"] != None:
+            NET.classifier[2] = torch.nn.Linear(in_features, LOADED_CHECKPOINT["num_classes"])
+
+            NET.load_state_dict(LOADED_CHECKPOINT["model_state_dict"])
+
             print(colors.INFO("Modelo c/ checkpoint carregado com sucesso."))
-            return Response(model.eval(), checkpoint)
+            return Response(NET.eval().to(device), LOADED_CHECKPOINT)
         
         else:
-            model = NeuralNetwork().to(DEVICE)
-            model.load_state_dict(torch.load(model_path))
+            NET.load_state_dict(torch.load(model_path))
+
             print(colors.INFO("Modelo s/ checkpoint carregado com sucesso."))
-            return Response(model.eval(), None)
+            return Response(NET.eval().to(device), None)
 
 
     except Exception as exc:

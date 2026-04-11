@@ -6,7 +6,7 @@ from enum import Enum
 
 class TransformType(Enum):
     TRAIN = "train"
-    VAL = "val"
+    EVAL = "eval"
 
 
 def Get_Transform(type: TransformType):
@@ -18,7 +18,7 @@ def Get_Transform(type: TransformType):
             transforms.ToTensor(),
             transforms.Normalize([0.485,0.456,0.406], [0.229,0.224,0.225]),
         ])
-    elif type == TransformType.VAL:
+    elif type == TransformType.EVAL:
         
         return transforms.Compose([
             transforms.Resize(256),
