@@ -2,7 +2,6 @@
 Para rodar a aplicação, você deve estar dentro da pasta /Project/IA
 """
 
-
 # FastAPI
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,7 +36,7 @@ else:
 
 
 # Application
-app = FastAPI()
+APP = FastAPI()
 
 origins = [
     "http://localhost:3000", # Atualizar CORS com .env
@@ -48,7 +47,7 @@ origins = [
 
 print(f"Origens: {origins}")
 
-app.add_middleware(
+APP.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
@@ -59,26 +58,36 @@ app.add_middleware(
 # Device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+"""
+Por conta de usarmos um modelo pré-treinado, temos que então importa-lo e carregar a arquitetura.
+Logo após, necessitamos introduzir os pesos próprios nos nós do modelo carregado e então o modelo estará pronto para uso.
+"""
+## --- Models Loading --- ##
 # CNN
 ## Generalist
-GeneralPATH = os.getenv("GENERALIST")
+if  os.path.isfile(os.getenv("GENERALIST")):
+    GENERALIST, LOADED_GENERALIST = loadModel(os.getenv("GENERALIST"), device=DEVICE)
+    print("GENERALIST Model loaded successfully")
+
 
 ## Experts
-if os.path.isfile(os.getenv("CORN")):
+if  os.path.isfile(os.getenv("CORN")) and \
+    os.path.isfile(os.getenv("WHEAT")) and \
+    os.path.isfile(os.getenv("SOYBEAN")):
+
     CORN, LOADED_CORN = loadModel(os.getenv("CORN"), device=DEVICE)
     print("CORN Model loaded successfully")
 
+    WHEAT, LOADED_WHEAT = loadModel(os.getenv("WHEAT"), device=DEVICE)
+    print("WHEAT Model loaded successfully")
+
+    SOYBEAN, LOADED_SOYBEAN = loadModel(os.getenv("SOYBEAN"), device=DEVICE)
+    print("SOYBEAN Model loaded successfully")
+
 else:
-    raise FileNotFoundError("couldn't identify the trained Corn model archive")
+    raise FileNotFoundError("couldn't identify some of the experts in models archive")
 
-# WHEAT_PATH = os.getenv("WHEAT")
-# SOYBEAN_PATH = os.getenv("SOY")
-
-
-## Rede Neural ##
-# GENERAL, LOADED_GENERAL = loadModelWithLabels(GeneralPATH)
-# WHEAT, LOADED_WHEAT = loadModelWithLabels(WHEAT_PATH)
-# SOYBEAN, LOADED_SOYBEAN = loadModelWithLabels(SOYBEAN_PATH)
 
 # Transform - Apply models.Get_Transform
 transform = transforms.Compose([
@@ -87,18 +96,6 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize([0.485,0.456,0.406], [0.229,0.224,0.225]),
 ])
-
-### ---- ###
-
-# Carregando modelo de milho
-"""
-Por conta de usarmos um modelo treinado, temos que então importa-lo e carregar a arquitetura.
-Logo após, necessitamos introduzir os pesos próprios nos nós do modelo carregado e então o modelo estará pronto para uso.
-"""
-
-# Aqui vai o carregamento de modelo
-
-### ---- ###
 
 
 # Defs
@@ -115,22 +112,22 @@ def __preprocess_image(image_file: UploadFile):
         print(f"Error trying to manipulate the image: {e}")
 
 
-def __corn_predict(image_tensor):
+def __generalist_predict(image_tensor):
 
     try:
         with torch.no_grad():
 
-            outputs = CORN(image_tensor.to(DEVICE))
+            outputs = GENERALIST(image_tensor.to(DEVICE))
             probabilities = F.softmax(outputs, dim=1)
             predicted_class_idx = torch.argmax(probabilities, dim=1).item()
 
             confidence = probabilities[0][predicted_class_idx].item()
         
-        predicted_class = LOADED_CORN["class_names"][predicted_class_idx]
+        predicted_class = LOADED_GENERALIST["class_names"][predicted_class_idx]
 
         all_probabilities = {
-            LOADED_CORN["class_names"][i]: float(probabilities[0][i])
-            for i in range(len(LOADED_CORN["class_names"]))
+            LOADED_GENERALIST["class_names"][i]: float(probabilities[0][i])
+            for i in range(len(LOADED_GENERALIST["class_names"]))
         }
         
         return predicted_class, round(confidence * 100, 2), all_probabilities
@@ -139,24 +136,97 @@ def __corn_predict(image_tensor):
         print(f"Error trying to predict: {e}")
 
 
+def __expert_predict(image_tensor, type: str):
+
+    try:
+        match(type):
+            case "Corn": 
+                with torch.no_grad():
+
+                    outputs = CORN(image_tensor.to(DEVICE))
+                    probabilities = F.softmax(outputs, dim=1)
+                    predicted_class_idx = torch.argmax(probabilities, dim=1).item()
+
+                    confidence = probabilities[0][predicted_class_idx].item()
+                
+                predicted_class = LOADED_CORN["class_names"][predicted_class_idx]
+
+                all_probabilities = {
+                    LOADED_CORN["class_names"][i]: float(probabilities[0][i])
+                    for i in range(len(LOADED_CORN["class_names"]))
+                }
+                
+                return predicted_class, round(confidence * 100, 2), all_probabilities
+            
+            case "Wheat": 
+                with torch.no_grad():
+
+                    outputs = WHEAT(image_tensor.to(DEVICE))
+                    probabilities = F.softmax(outputs, dim=1)
+                    predicted_class_idx = torch.argmax(probabilities, dim=1).item()
+
+                    confidence = probabilities[0][predicted_class_idx].item()
+                
+                predicted_class = LOADED_WHEAT["class_names"][predicted_class_idx]
+
+                all_probabilities = {
+                    LOADED_WHEAT["class_names"][i]: float(probabilities[0][i])
+                    for i in range(len(LOADED_WHEAT["class_names"]))
+                }
+                
+                return predicted_class, round(confidence * 100, 2), all_probabilities
+            
+            case "Soybean": 
+                with torch.no_grad():
+
+                    outputs = SOYBEAN(image_tensor.to(DEVICE))
+                    probabilities = F.softmax(outputs, dim=1)
+                    predicted_class_idx = torch.argmax(probabilities, dim=1).item()
+
+                    confidence = probabilities[0][predicted_class_idx].item()
+                
+                predicted_class = LOADED_SOYBEAN["class_names"][predicted_class_idx]
+
+                all_probabilities = {
+                    LOADED_SOYBEAN["class_names"][i]: float(probabilities[0][i])
+                    for i in range(len(LOADED_SOYBEAN["class_names"]))
+                }
+                
+                return predicted_class, round(confidence * 100, 2), all_probabilities
+
+    except Exception as e:
+        print(f"Error trying to predict: {e}")
+
+
 # Routes
 ## Debug
-@app.get("/modelinfo")
+@APP.get("/modelinfo")
 def ModelInfo():
     return {
-        "class_names": LOADED_CORN["class_names"],
-        "num_classes": LOADED_CORN["num_classes"],
-        "model_info": LOADED_CORN["model_info"],
-    }
-
-@app.get("/modelready")
-def ModelInfo():
-    return {
-        "model": CORN,
+        "class_names": LOADED_GENERALIST["class_names"],
+        "num_classes": LOADED_GENERALIST["num_classes"],
+        "model_info": LOADED_GENERALIST["model_info"],
+        "models": {
+            "corn": {
+                "class_names": LOADED_CORN["class_names"],
+                "num_classes": LOADED_CORN["num_classes"],
+                "model_info": LOADED_CORN["model_info"],
+            },
+            "wheat": {
+                "class_names": LOADED_WHEAT["class_names"],
+                "num_classes": LOADED_WHEAT["num_classes"],
+                "model_info": LOADED_WHEAT["model_info"],
+            },
+            "soybean": {
+                "class_names": LOADED_SOYBEAN["class_names"],
+                "num_classes": LOADED_SOYBEAN["num_classes"],
+                "model_info": LOADED_SOYBEAN["model_info"],
+            }
+        },
     }
 
 ## Predict
-@app.post("/predict")
+@APP.post("/predict")
 async def Predict( file: UploadFile = File(...) ):
     
     if not file.content_type.startswith("image/"):
@@ -172,22 +242,20 @@ async def Predict( file: UploadFile = File(...) ):
     image_tensor = __preprocess_image(image_file=file)
 
     # Prediction
-    prediction = __corn_predict(image_tensor)
+    generalist_prediction = __generalist_predict(image_tensor)
+
+    expert_prediction = __expert_predict(image_tensor, type=generalist_prediction[0])
 
 
     return {
-        "prediction": prediction,
-    }
-
-    # return {
-    #     "plant": generalPrediction.lower(), 
-    #     "plantConfidence": generalConfidence,
-    #     "prediction": predicted_class.lower(), 
-    #     "predictionConfidence": sicknessConfidence
-    #     }
-
-
+        "plant_prediction": generalist_prediction[0].upper(), 
+        "plant_confidence": generalist_prediction[1],
+        "expert": {
+            "predict": expert_prediction[0].upper(), 
+            "predict_confidence": expert_prediction[1],
+        }
+        }
 
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=5000)
+    uvicorn.run(APP, host='0.0.0.0', port=5000)
